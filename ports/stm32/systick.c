@@ -30,6 +30,12 @@
 #include "systick.h"
 #include "pybthread.h"
 
+#ifdef USE_FREERTOS
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#endif
+
 extern __IO uint32_t uwTick;
 
 // We provide our own version of HAL_Delay that calls __WFI while waiting,
@@ -54,6 +60,9 @@ void HAL_Delay(uint32_t Delay) {
 // If IRQs are enabled then we must have the GIL.
 void mp_hal_delay_ms(mp_uint_t Delay) {
     if (query_irq() == IRQ_STATE_ENABLED) {
+#ifdef USE_FREERTOS
+        vTaskDelay (Delay / portTICK_PERIOD_MS);
+#else
         // IRQs enabled, so can use systick counter to do the delay
         uint32_t start = uwTick;
         // Wraparound of tick is taken care of by 2's complement arithmetic.
@@ -63,6 +72,7 @@ void mp_hal_delay_ms(mp_uint_t Delay) {
             // (at least) the SysTick interrupt).
             MICROPY_EVENT_POLL_HOOK
         }
+#endif
     } else {
         // IRQs disabled, so need to use a busy loop for the delay.
         // To prevent possible overflow of the counter we use a double loop.

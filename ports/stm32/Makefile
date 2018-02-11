@@ -1,6 +1,6 @@
 # Select the board to build for: if not given on the command line,
 # then default to PYBV10.
-BOARD ?= PYBV10
+BOARD ?= STM32F4DISC
 ifeq ($(wildcard boards/$(BOARD)/.),)
 $(error Invalid BOARD specified)
 endif
@@ -48,6 +48,9 @@ INC += -I$(CMSIS_DIR)/
 INC += -I$(TOP)/$(HAL_DIR)/Inc
 INC += -I$(USBDEV_DIR)/core/inc -I$(USBDEV_DIR)/class/inc
 #INC += -I$(USBHOST_DIR)
+INC += -IFreeRTOS
+INC += -IFreeRTOS/Source/include
+INC += -IFreeRTOS/Source/portable/GCC/ARM_CM3
 
 # Basic Cortex-M flags
 CFLAGS_CORTEX_M = -mthumb
@@ -70,6 +73,8 @@ CFLAGS += $(CFLAGS_MCU_$(MCU_SERIES))
 CFLAGS += $(COPT)
 CFLAGS += -Iboards/$(BOARD)
 CFLAGS += -DSTM32_HAL_H='<stm32$(MCU_SERIES)xx_hal.h>'
+CFLAGS += -ggdb3
+CFLAGS += -DUSE_FREERTOS
 
 ifeq ($(MICROPY_FLOAT_IMPL),double)
 CFLAGS += -DMICROPY_FLOAT_IMPL=MICROPY_FLOAT_IMPL_DOUBLE
@@ -92,6 +97,17 @@ COPT = -O0
 else
 COPT += -Os -DNDEBUG
 endif
+
+RTOS_SRC_C = $(addprefix FreeRTOS/Source/,\
+	croutine.c \
+	event_groups.c \
+	list.c \
+	queue.c \
+	tasks.c \
+	timers.c \
+	portable/GCC/ARM_CM3/port.c \
+	portable/MemMang/heap_4.c \
+	)
 
 SRC_LIB = $(addprefix lib/,\
 	libc/string0.c \
@@ -191,6 +207,9 @@ DRIVERS_SRC_C = $(addprefix drivers/,\
 
 SRC_C = \
 	main.c \
+	mptask.c \
+	testtask.c \
+	FreeRTOSHooks.c \
 	system_stm32.c \
 	stm32_it.c \
 	usbd_conf.c \
@@ -333,6 +352,7 @@ OBJ += $(addprefix $(BUILD)/, $(SRC_O))
 OBJ += $(addprefix $(BUILD)/, $(SRC_HAL:.c=.o))
 OBJ += $(addprefix $(BUILD)/, $(SRC_USBDEV:.c=.o))
 OBJ += $(addprefix $(BUILD)/, $(SRC_MOD:.c=.o))
+OBJ += $(RTOS_SRC_C:.c=.o)
 OBJ += $(BUILD)/pins_$(BOARD).o
 
 # We put several files into the first 16K section with the ISRs.
@@ -378,6 +398,7 @@ endif
 FLASH_ADDR ?= 0x08000000
 TEXT_ADDR ?= 0x08020000
 
+
 deploy-stlink: $(BUILD)/firmware.dfu
 	$(ECHO) "Writing $(BUILD)/firmware0.bin to the board via ST-LINK"
 	$(Q)$(STFLASH) write $(BUILD)/firmware0.bin $(FLASH_ADDR)
@@ -392,6 +413,7 @@ $(BUILD)/firmware.dfu: $(BUILD)/firmware.elf
 	$(ECHO) "Create $@"
 	$(Q)$(OBJCOPY) -O binary -j .isr_vector $^ $(BUILD)/firmware0.bin
 	$(Q)$(OBJCOPY) -O binary -j .text -j .data $^ $(BUILD)/firmware1.bin
+	$(Q)$(OBJDUMP) -h -S -z $(BUILD)/firmware.elf > $(BUILD)/firmware.lss
 	$(Q)$(PYTHON) $(DFU) -b $(FLASH_ADDR):$(BUILD)/firmware0.bin -b $(TEXT_ADDR):$(BUILD)/firmware1.bin $@
 
 $(BUILD)/firmware.hex: $(BUILD)/firmware.elf

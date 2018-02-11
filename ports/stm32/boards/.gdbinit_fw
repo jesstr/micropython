@@ -1,0 +1,5 @@
+target remote localhost:3333
+file build-STM32F4DISC/firmware.elf
+load
+break Reset_Handler
+
