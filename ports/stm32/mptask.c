@@ -145,6 +145,17 @@ static const char fresh_main_py[] =
 "# main.py -- put your code here!\r\n"
 ;
 
+static const char test_main_py[] =
+"# main.py -- put your code here!\r\n"
+"import machine, utime\r\n"
+"bled = machine.Pin.board.LED_GREEN\r\n"
+"while True:\r\n"
+"	bled.value(1)\r\n"
+"	utime.sleep_ms(100)\r\n"
+"	bled.value(0)\r\n"
+"	utime.sleep_ms(100)\r\n"
+;
+
 static const char fresh_pybcdc_inf[] =
 #include "genhdr/pybcdc_inf.h"
 ;
@@ -197,7 +208,8 @@ MP_NOINLINE STATIC bool init_flash_fs(uint reset_mode) {
         FIL fp;
         f_open(&vfs_fat->fatfs, &fp, "/main.py", FA_WRITE | FA_CREATE_ALWAYS);
         UINT n;
-        f_write(&fp, fresh_main_py, sizeof(fresh_main_py) - 1 /* don't count null terminator */, &n);
+//        f_write(&fp, fresh_main_py, sizeof(fresh_main_py) - 1 /* don't count null terminator */, &n);
+        f_write(&fp, test_main_py, sizeof(test_main_py) - 1 /* don't count null terminator */, &n);
         // TODO check we could write n bytes
         f_close(&fp);
 
